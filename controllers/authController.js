@@ -1,18 +1,28 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const User = require("../models/userModel"); // Import the User model
+const User = require("../models/userModel");
 
 // Signup Controller
 exports.signup = async (req, res) => {
-  const { username, password } = req.body;
+  const { name, gmail, username, password, country } = req.body;
 
   try {
-    const userExists = await User.findOne({ username });
+    const userExists = await User.findOne({ $or: [{ gmail }, { username }] });
     if (userExists)
-      return res.status(400).json({ message: "User already exists" });
+      return res
+        .status(400)
+        .json({ message: "Gmail or Username already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ username, password: hashedPassword });
+
+    const newUser = new User({
+      name,
+      gmail,
+      username,
+      password: hashedPassword,
+      country,
+    });
+
     await newUser.save();
 
     res.status(201).json({ message: "User created successfully" });
@@ -22,12 +32,15 @@ exports.signup = async (req, res) => {
   }
 };
 
+
 // Login Controller
 exports.login = async (req, res) => {
-  const { username, password } = req.body;
+  const { identifier, password } = req.body;
 
   try {
-    const user = await User.findOne({ username });
+    const user = await User.findOne({
+      $or: [{ gmail: identifier }, { username: identifier }],
+    });
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -44,3 +57,4 @@ exports.login = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
