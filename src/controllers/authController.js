@@ -8,20 +8,18 @@ const path = require("path");
 
 // Signup Controller
 exports.signup = async (req, res) => {
-  const { name, email, username, password, country } = req.body;
+  const { name, email, password } = req.body;
 
-  if (!name || !email || !username || !password || !country) {
+  if (!name || !email || !password) {
     return res.status(400).json({ message: "All fields are required" });
   }
 
   try {
-    const userExists = await User.findOne({
-      $or: [{ email }, { username }],
-    });
+    const userExists = await User.findOne({ email });
     if (userExists)
       return res
         .status(400)
-        .json({ message: "Email or Username already exists" });
+        .json({ message: "Email already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -31,9 +29,7 @@ exports.signup = async (req, res) => {
     const newUser = new User({
       name,
       email,
-      username,
       password: hashedPassword,
-      country,
       otp,
       isAdmin: false,
       isVerified: false,
@@ -47,7 +43,7 @@ exports.signup = async (req, res) => {
 
     // Replace placeholders in the template
     emailHtml = emailHtml
-      .replace("{{username}}", username)
+      .replace("{{name}}", name)
       .replace("{{otp}}", otp)
       .replace("{{year}}", new Date().getFullYear());
 
@@ -88,13 +84,10 @@ exports.validateOtp = async (req, res) => {
 
 // Login Controller
 exports.login = async (req, res) => {
-  const { identifier, password } = req.body;
+  const { email, password } = req.body;
 
   try {
-    const user = await User.findOne({
-      $or: [{ email: identifier }, { username: identifier }],
-    });
-
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
