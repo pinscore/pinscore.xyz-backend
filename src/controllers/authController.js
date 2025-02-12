@@ -119,10 +119,8 @@ exports.sendForgotPasswordOtp = async (req, res) => {
   const { identifier } = req.body;
 
   try {
-    // Find the user by email or username
-    const user = await User.findOne({
-      $or: [{ email: identifier }, { username: identifier }],
-    });
+    // Find the user by email
+    const user = await User.findOne({ email });
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -141,7 +139,7 @@ exports.sendForgotPasswordOtp = async (req, res) => {
     );
     let emailHtml = fs.readFileSync(templatePath, "utf-8");
     emailHtml = emailHtml
-      .replace("{{username}}", user.username)
+      .replace("{{name}}", user.name)
       .replace("{{otp}}", otp)
       .replace("{{year}}", new Date().getFullYear());
 
@@ -162,9 +160,7 @@ exports.updatePassword = async (req, res) => {
 
   try {
     // Find the user by email
-    const user = await User.findOne({
-      $or: [{ email: identifier }, { username: identifier }],
-    });
+    const user = await User.findOne({ email });
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
