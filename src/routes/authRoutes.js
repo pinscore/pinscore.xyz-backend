@@ -4,7 +4,7 @@ const authenticateToken = require("../middleware/authenticateToken");
 
 const router = express.Router();
 
-// Define routes
+// routes
 router.post("/signup", authController.signup);
 router.post("/forgot-password", authController.sendForgotPasswordOtp);
 router.post("/update-password", authController.updatePassword);
