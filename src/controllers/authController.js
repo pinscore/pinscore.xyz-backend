@@ -8,50 +8,46 @@ const path = require("path");
 
 // Signup Controller
 exports.signup = async (req, res) => {
-  const { name, email, password } = req.body;
+  const { email } = req.body;
 
-  if (!name || !email || !password) {
-    return res.status(400).json({ message: "All fields are required" });
+  if (!email) {
+    return res.status(400).json({ message: "Email is required" });
   }
 
   try {
     const userExists = await User.findOne({ email });
-    if (userExists)
-      return res
-        .status(400)
-        .json({ message: "Email already exists" });
+    if (userExists && userExists.isVerified && userExists.username) {
+      return res.status(400).json({ message: "Email already exists and is fully registered" });
+    }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const otp = crypto.randomInt(100000, 999999).toString();
 
-    const otp = crypto.randomInt(100000, 999999);
+    let user = await User.findOne({ email });
 
-    // Create a new user instance
-    const newUser = new User({
-      name,
-      email,
-      password: hashedPassword,
-      otp,
-      isAdmin: false,
-      isVerified: false,
-    });
+    if (user) {
+      user.otp = otp;
+      await user.save();
+    } else {
+      user = new User({
+        email,
+        otp,
+        isVerified: false,
+        isAdmin: false,
+      });
+      await user.save();
+    }
 
-    await newUser.save();
-
-    // Load the email template
     const templatePath = path.join(__dirname, "../templates/otpTemplate.html");
     let emailHtml = fs.readFileSync(templatePath, "utf-8");
 
-    // Replace placeholders in the template
     emailHtml = emailHtml
-      .replace("{{name}}", name)
       .replace("{{otp}}", otp)
       .replace("{{year}}", new Date().getFullYear());
 
     await sendEmail(email, "Verify Your Email", emailHtml);
 
     res.status(201).json({
-      message:
-        "User created successfully. Please check your email for the OTP.",
+      message: "OTP sent successfully. Please check your email.",
     });
   } catch (err) {
     console.error(err);
@@ -59,7 +55,7 @@ exports.signup = async (req, res) => {
   }
 };
 
-//Validate otp Controller
+// Validate OTP Controller
 exports.validateOtp = async (req, res) => {
   const { email, otp } = req.body;
 
@@ -67,7 +63,7 @@ exports.validateOtp = async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    if (user.otp !== otp) {
+    if (user.otp !== String(otp)) {
       return res.status(400).json({ message: "Invalid OTP" });
     }
 
@@ -75,12 +71,74 @@ exports.validateOtp = async (req, res) => {
     user.otp = null;
     await user.save();
 
-    res.json({ message: "Account verified successfully. You can now log in." });
+    res.json({
+      message: "Account verified successfully",
+      needsUsername: !user.username,
+      userId: user._id,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+// Set Username Controller
+exports.setUsername = async (req, res) => {
+  const { email, username } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (!user.isVerified) {
+      return res.status(403).json({ message: "Account not verified" });
+    }
+
+    if (user.username) {
+      return res.status(400).json({ message: "Username already set" });
+    }
+
+    const usernameExists = await User.findOne({ username });
+    if (usernameExists) {
+      return res.status(400).json({ message: "Username already taken" });
+    }
+
+    user.username = username;
+    await user.save();
+
+    res.json({ message: "Username set successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// Check Status Controller
+exports.checkStatus = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(200).json({
+        exists: false,
+        isVerified: false,
+        hasUsername: false,
+      });
+    }
+
+    res.status(200).json({
+      exists: true,
+      isVerified: user.isVerified,
+      hasUsername: !!user.username,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
 
 // Login Controller
 exports.login = async (req, res) => {
@@ -103,7 +161,6 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Generate a JWT token for successful login
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: "1h",
     });
@@ -116,17 +173,20 @@ exports.login = async (req, res) => {
 };
 
 exports.sendForgotPasswordOtp = async (req, res) => {
-  const { identifier } = req.body;
+  const { email } = req.body;
 
   try {
-    // Find the user by email
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
     const user = await User.findOne({ email });
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    const otp = crypto.randomInt(100000, 999999).toString();
 
+    const otp = crypto.randomInt(100000, 999999).toString();
     const otpExpiration = Date.now() + 10 * 60 * 1000;
 
     user.otp = otp;
@@ -159,14 +219,12 @@ exports.updatePassword = async (req, res) => {
   const { identifier, otp, newPassword } = req.body;
 
   try {
-    // Find the user by email
     const user = await User.findOne({ email });
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Check if the OTP is valid and not expired
     if (user.otp !== otp) {
       return res.status(400).json({ message: "Invalid OTP" });
     }
@@ -175,13 +233,11 @@ exports.updatePassword = async (req, res) => {
       return res.status(400).json({ message: "OTP has expired" });
     }
 
-    // Hash the new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update the password
     user.password = hashedPassword;
-    user.otp = null; // Clear the OTP
-    user.otpExpiration = null; // Clear the OTP expiration
+    user.otp = null;
+    user.otpExpiration = null;
     await user.save();
 
     res.json({ message: "Password updated successfully. You can now log in." });
