@@ -21,7 +21,7 @@ exports.signup = async (req, res) => {
     }
 
     let user = await User.findOne({ email });
-    
+
     if (user && user.otp && user.otpExpiration && new Date() < user.otpExpiration) {
       return res.status(200).json({
         message: "Please use the existing OTP sent to your email.",
@@ -29,7 +29,7 @@ exports.signup = async (req, res) => {
     }
 
     const otp = crypto.randomInt(100000, 999999).toString();
-    const otpExpiration = new Date(Date.now() + 10 * 60 * 1000); 
+    const otpExpiration = new Date(Date.now() + 10 * 60 * 1000);
 
     if (user) {
       user.otp = otp;
@@ -139,6 +139,7 @@ exports.checkStatus = async (req, res) => {
         isVerified: false,
         hasUsername: false,
         hasUnexpiredOtp: false,
+        hasPassword: false,
       });
     }
 
@@ -149,6 +150,7 @@ exports.checkStatus = async (req, res) => {
       isVerified: user.isVerified,
       hasUsername: !!user.username,
       hasUnexpiredOtp,
+      hasPassword: !!user.password,
     });
   } catch (err) {
     console.error(err);
@@ -170,12 +172,6 @@ exports.login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials" });
-    }
-
-    if (!user.isVerified) {
-      return res.status(403).json({
-        message: "Your account is not verified. Please complete verification.",
-      });
     }
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
