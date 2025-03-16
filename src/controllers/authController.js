@@ -169,6 +169,17 @@ exports.login = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // Check if the account is verified
+    if (!user.isVerified) {
+      return res.status(403).json({ message: "Your account is not verified" });
+    }
+
+    // Check if the account has a password
+    if (!user.password) {
+      return res.status(403).json({ message: "No password set for this account" });
+    }
+
+    // Check if the password matches
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials" });
