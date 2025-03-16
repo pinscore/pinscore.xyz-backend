@@ -20,17 +20,26 @@ exports.signup = async (req, res) => {
       return res.status(400).json({ message: "Email already exists and is fully registered" });
     }
 
-    const otp = crypto.randomInt(100000, 999999).toString();
-
     let user = await User.findOne({ email });
+    
+    if (user && user.otp && user.otpExpiration && new Date() < user.otpExpiration) {
+      return res.status(200).json({
+        message: "Please use the existing OTP sent to your email.",
+      });
+    }
+
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const otpExpiration = new Date(Date.now() + 10 * 60 * 1000); 
 
     if (user) {
       user.otp = otp;
+      user.otpExpiration = otpExpiration;
       await user.save();
     } else {
       user = new User({
         email,
         otp,
+        otpExpiration,
         isVerified: false,
         isAdmin: false,
       });
@@ -63,12 +72,17 @@ exports.validateOtp = async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    if (!user.otp || !user.otpExpiration || new Date() > user.otpExpiration) {
+      return res.status(400).json({ message: "OTP has expired. Please request a new one." });
+    }
+
     if (user.otp !== String(otp)) {
       return res.status(400).json({ message: "Invalid OTP" });
     }
 
     user.isVerified = true;
     user.otp = null;
+    user.otpExpiration = null;
     await user.save();
 
     res.json({
@@ -119,19 +133,22 @@ exports.checkStatus = async (req, res) => {
 
   try {
     const user = await User.findOne({ email });
-
     if (!user) {
       return res.status(200).json({
         exists: false,
         isVerified: false,
         hasUsername: false,
+        hasUnexpiredOtp: false,
       });
     }
+
+    const hasUnexpiredOtp = user.otp && user.otpExpiration && new Date() < user.otpExpiration;
 
     res.status(200).json({
       exists: true,
       isVerified: user.isVerified,
       hasUsername: !!user.username,
+      hasUnexpiredOtp,
     });
   } catch (err) {
     console.error(err);
