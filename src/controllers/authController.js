@@ -189,78 +189,46 @@ exports.login = async (req, res) => {
   }
 };
 
-exports.sendForgotPasswordOtp = async (req, res) => {
-  const { email } = req.body;
+exports.setPassword = async (req, res) => {
+  const { email, password } = req.body;
 
   try {
-    if (!email) {
-      return res.status(400).json({ message: "Email is required" });
-    }
-
     const user = await User.findOne({ email });
-
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const otp = crypto.randomInt(100000, 999999).toString();
-    const otpExpiration = Date.now() + 10 * 60 * 1000;
+    if (!user.isVerified) {
+      return res.status(403).json({ message: "Account not verified" });
+    }
 
-    user.otp = otp;
-    user.otpExpiration = otpExpiration;
+    if (!user.username) {
+      return res.status(400).json({ message: "Please set a username first" });
+    }
+
+    if (user.password) {
+      return res.status(400).json({ message: "Password already set" });
+    }
+
+    const passwordRegex = /^(?=.*[A-Z])(?=.*[0-9!@#$%^&*])(?=.*[a-z]).{8,}$/;
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, and one number or special character"
+      });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    user.password = hashedPassword;
     await user.save();
 
-    const templatePath = path.join(
-      __dirname,
-      "../templates/forgotPasswordTemplate.html"
-    );
-    let emailHtml = fs.readFileSync(templatePath, "utf-8");
-    emailHtml = emailHtml
-      .replace("{{name}}", user.name)
-      .replace("{{otp}}", otp)
-      .replace("{{year}}", new Date().getFullYear());
-
-    await sendEmail(user.email, "Forgot Password OTP", emailHtml);
-
-    res.status(201).json({
-      message: "OTP sent successfully. Please check your email for the OTP.",
+    res.status(200).json({
+      message: "Password set successfully",
+      userId: user._id
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
-// Update Password Controller
-exports.updatePassword = async (req, res) => {
-  const { identifier, otp, newPassword } = req.body;
-
-  try {
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    if (user.otp !== otp) {
-      return res.status(400).json({ message: "Invalid OTP" });
-    }
-
-    if (Date.now() > user.otpExpiration) {
-      return res.status(400).json({ message: "OTP has expired" });
-    }
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    user.password = hashedPassword;
-    user.otp = null;
-    user.otpExpiration = null;
-    await user.save();
-
-    res.json({ message: "Password updated successfully. You can now log in." });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-};
-
