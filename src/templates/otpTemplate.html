@@ -1,65 +1,95 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>Welcome to Pinscore</title>
-  </head>
-
-  <body
-    style="
-      font-family: Arial, sans-serif;
-      background-color: #f9f9f9;
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+    rel="stylesheet"
+  />
+  <title>Welcome to Pinscore</title>
+  <style>
+    * {
       margin: 0;
       padding: 0;
-      color: #00000080;
-    "
-  >
-    <div
-      style="
-        max-width: 600px;
-        margin: 30px auto;
-        background-color: #ffffff;
-        border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        overflow: hidden;
-        padding: 20px;
-      "
-    >
-      <div
-        style="
-          background-color: #e9eff2;
-          color: #000000;
-          text-align: center;
-          padding: 20px;
-        "
-      >
-        <h1 style="font-size: 24px; margin: 0">
-          Welcome to Pinscore
-        </h1>
-      </div>
-      <div style="padding: 20px; text-align: center">
-        <p style="font-size: 16px; line-height: 1.6; margin: 10px 0">
-          We're excited to have you onboard. Use the One-Time Password (OTP)
-          below to verify your account:
-        </p>
-        <h2 style="font-size: 36px; color: #0a7cff; margin: 20px 0">{{otp}}</h2>
-        <p style="font-size: 16px; line-height: 1.6; margin: 10px 0">
-          <strong>Note:</strong> This OTP will expire in 10 minutes.
-        </p>
-        <p style="font-size: 16px; line-height: 1.6; margin: 10px 0">
-          If you did not sign up for Pinscore, please ignore this email.
-        </p>
-      </div>
-      <div
-        style="
-          background-color: #e9eff2;
-          padding: 10px;
-          text-align: center;
-          font-size: 12px;
-          color: #666;
-        "
-      >
-        <p>&copy; {{year}} Pinscore. All rights reserved.</p>
-      </div>
-    </div>
-  </body>
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Inter', Arial, Helvetica, sans-serif;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .outer-table {
+      width: 100%;
+      max-width: 100%;
+    }
+    .content-table {
+      width: 600px !important;
+      max-width: 600px !important;
+      background-color: #ffffff;
+      padding: 32px;
+    }
+    @media only screen and (max-width: 600px) {
+      .content-table {
+        width: 600px !important;
+        max-width: 600px !important;
+      }
+      .outer-table {
+        width: 100% !important;
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" class="outer-table">
+    <tr>
+      <td align="center">
+        <table cellpadding="0" cellspacing="0" border="0" class="content-table">
+          <tr>
+            <td align="left">
+              <img src="https://res.cloudinary.com/dzzwvcapu/image/upload/v1742570936/Pinscore/levmkwuerzdgt1hamcab.png" alt="Pinscore Logo" width="42" height="41" style="margin-bottom: 10px;" />
+              <h1 style="color: #745dca; font-size: 28px;">PINSCORE</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top: 30px; padding-bottom: 25px;">
+              <h5 style="font-size: 24px; margin-bottom: 10px;">Verify Your Pinscore OTP</h5>
+              <p style="color: #555555; font-size: 16px;">Use the code below to complete your login. This code is valid for 5 minutes.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #eeebf8; border-radius: 10px; padding: 25px; text-align: center;">
+              <h2 style="margin: 0; font-size: 20px;">{{otp}}</h2>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top: 35px; color: #555555; font-size: 16px;">
+              <p>If you did not attempt to sign up but received this email, please ignore it. <a href="https://pinscore.xyz/support" style="color: #555555;">Contact support</a></p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top: 35px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td>
+                    <img src="https://res.cloudinary.com/dzzwvcapu/image/upload/v1742571232/Pinscore/cieciepsitmmn5xbtqlw.png" alt="Pinscore" width="20" height="20" style="vertical-align: middle;" />
+                    <span style="font-size: 20px; font-weight: 800; vertical-align: middle; color: #000000;">PINSCORE</span>
+                  </td>
+                  <td align="right">
+                    <a href="https://instagram.com/pinscore"><img src="https://res.cloudinary.com/dzzwvcapu/image/upload/v1742570961/Pinscore/rayld2vgbs9memktoueh.png" alt="Instagram" width="20" height="20" style="margin-left: 10px;" /></a>
+                    <a href="https://facebook.com/pinscore"><img src="https://res.cloudinary.com/dzzwvcapu/image/upload/v1742570936/Pinscore/ljwkl9duai5faq33acko.png" alt="Facebook" width="20" height="20" style="margin-left: 10px;" /></a>
+                    <a href="https://x.com/pinscore"><img src="https://res.cloudinary.com/dzzwvcapu/image/upload/v1742570936/Pinscore/mwbywixzdre1cr348exs.png" alt="X" width="16" height="16" style="margin-left: 10px;" /></a>
+                    <a href="https://youtube.com/pinscore"><img src="https://res.cloudinary.com/dzzwvcapu/image/upload/v1742570936/Pinscore/yyqhg1yi9yxfn0kjmdey.png" alt="YouTube" width="26" height="18" style="margin-left: 10px;" /></a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
 </html>
