@@ -15,12 +15,16 @@ exports.signup = async (req, res) => {
   }
 
   try {
-    const userExists = await User.findOne({ email });
-    if (userExists && userExists.isVerified && userExists.username) {
-      return res.status(400).json({ message: "Email already exists and is fully registered" });
-    }
+    const user = await User.findOne({ email });
 
-    let user = await User.findOne({ email });
+    if (user && user.isVerified) {
+      return res.status(200).json({
+        message: "User already verified",
+        isVerified: true,
+        hasUsername: !!user.username,
+        hasPassword: !!user.password,
+      });
+    }
 
     if (user && user.otp && user.otpExpiration && new Date() < user.otpExpiration) {
       return res.status(200).json({
@@ -36,14 +40,13 @@ exports.signup = async (req, res) => {
       user.otpExpiration = otpExpiration;
       await user.save();
     } else {
-      user = new User({
+      await new User({
         email,
         otp,
         otpExpiration,
         isVerified: false,
         isAdmin: false,
-      });
-      await user.save();
+      }).save();
     }
 
     const templatePath = path.join(__dirname, "../templates/otpTemplate.html");
