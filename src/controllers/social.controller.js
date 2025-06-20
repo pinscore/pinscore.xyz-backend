@@ -276,7 +276,7 @@ exports.getSocialAnalytics = async (req, res) => {
   }
 };
 
-// Search YouTube channel by username
+// Search YouTube channel by Username
 const searchYouTubeChannel = async (username) => {
   try {
     const response = await axios.get(`${YOUTUBE_API_URL}/search`, {
