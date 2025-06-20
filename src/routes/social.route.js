@@ -4,10 +4,24 @@ const authenticateToken = require("../middleware/authToken.middleware");
 
 const router = express.Router();
 
-router.post("/analytics", authenticateToken, socialController.getSocialAnalytics);
-router.get('/twitter/auth', socialController.startTwitterAuth);
-router.post('/twitter/callback', socialController.twitterCallback);
-router.get('/instagram/auth', socialController.startInstagramAuth);
-router.post('/instagram/callback', socialController.instagramCallback);
+router.post(
+  "/analytics",
+  authenticateToken,
+  socialController.getSocialAnalytics
+);
+router.get("/twitter/auth", socialController.startTwitterAuth);
+router.post("/twitter/callback", socialController.twitterCallback);
+router.get("/instagram/auth", socialController.startInstagramAuth);
+router.post("/instagram/callback", socialController.instagramCallback);
+router.post(
+  "/youtube/analytics",
+  authenticateToken,
+  socialController.getYouTubeAnalyticsByUsername
+);
+router.get(
+  "/youtube/channel",
+  authenticateToken,
+  socialController.getYouTubeChannelInfo
+);
 
 module.exports = router;

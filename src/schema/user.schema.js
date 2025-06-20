@@ -1,4 +1,3 @@
-// src/schema/user.schema.js
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
@@ -13,12 +12,17 @@ const userSchema = new mongoose.Schema({
   twitter: {
     id: { type: String },
     accessToken: { type: String },
-    refreshToken: { type: String }
+    refreshToken: { type: String },
   },
   instagram: {
     id: { type: String },
-    accessToken: { type: String }
-  }
+    accessToken: { type: String },
+  },
+  youtube: {
+    channelId: { type: String },
+    channelName: { type: String },
+    username: { type: String },
+  },
 });
 
 module.exports = mongoose.model("User", userSchema);
