@@ -1,9 +1,17 @@
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
+  fullName: {
+    type: String,
+    trim: true
+  },
   username: { type: String, required: false },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: false },
+  profilePicture: {
+    url: { type: String, default: null },
+    public_id: { type: String, default: null }
+  },
   otp: { type: String },
   otpExpiration: { type: Date },
   isAdmin: { type: Boolean, default: false },

@@ -1,94 +1,41 @@
 const User = require("../schema/user.schema");
 const axios = require("axios");
 
-const TWITTER_API_KEY = process.env.TWITTER_API_KEY;
-const TWITTER_API_SECRET = process.env.TWITTER_API_SECRET;
-const TWITTER_BEARER_TOKEN = process.env.TWITTER_BEARER_TOKEN;
-const TWITTER_CLIENT_ID = process.env.CLIENT_ID;
-const TWITTER_CLIENT_SECRET = process.env.CLIENT_SECRET;
 const INSTAGRAM_API_URL = "https://graph.instagram.com";
+const FACEBOOK_GRAPH_API_URL = "https://graph.facebook.com/v20.0";
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 const YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3";
 
-// Twitter OAuth2 endpoints
-exports.startTwitterAuth = async (req, res) => {
-  const authUrl = `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${TWITTER_CLIENT_ID}&redirect_uri=${process.env.TWITTER_REDIRECT_URI}&scope=users.read%20tweet.read%20offline.access&state=twitter&code_challenge=challenge&code_challenge_method=plain`;
-  res.json({ authUrl });
-};
-
-exports.twitterCallback = async (req, res) => {
-  const { code, email } = req.body;
-
+// Validate access token using APP_TOKEN
+const validateToken = async (userToken, appToken) => {
   try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    if (req.user.userId !== user._id.toString()) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
-    // Exchange code for tokens
-    const tokenResponse = await axios.post(
-      "https://api.twitter.com/2/oauth2/token",
-      {
-        code,
-        grant_type: "authorization_code",
-        client_id: TWITTER_CLIENT_ID,
-        redirect_uri: process.env.TWITTER_REDIRECT_URI,
-        code_verifier: "challenge",
-      },
-      {
-        auth: {
-          username: TWITTER_CLIENT_ID,
-          password: TWITTER_CLIENT_SECRET,
-        },
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-      }
+    const response = await axios.get(
+      `${FACEBOOK_GRAPH_API_URL}/debug_token?input_token=${userToken}&access_token=${appToken}`
     );
-
-    const { access_token, refresh_token } = tokenResponse.data;
-
-    // Get user info
-    const userResponse = await axios.get("https://api.twitter.com/2/users/me", {
-      headers: {
-        Authorization: `Bearer ${access_token}`,
-      },
-    });
-
-    user.twitter = {
-      id: userResponse.data.data.id,
-      accessToken: access_token,
-      refreshToken: refresh_token,
-    };
-
-    await user.save();
-    res.json({ message: "Twitter account linked successfully" });
+    return response.data.data.is_valid;
   } catch (err) {
-    console.error("Twitter OAuth error:", err.response?.data || err.message);
-    res.status(500).json({ message: "Error linking Twitter account" });
+    console.error("Token validation error:", err.response?.data || err.message);
+    return false;
   }
 };
 
 // Instagram OAuth2 endpoints
 exports.startInstagramAuth = async (req, res) => {
-  const authUrl = `https://api.instagram.com/oauth/authorize?client_id=
-    ${process.env.INSTAGRAM_CLIENT_ID}&redirect_uri=${process.env.INSTAGRAM_REDIRECT_URI}&scope=user_profile,user_media&response_type=code`;
+  const authUrl = `https://api.instagram.com/oauth/authorize?client_id=${
+    process.env.INSTAGRAM_CLIENT_ID
+  }&redirect_uri=${process.env.INSTAGRAM_REDIRECT_URI}&scope=user_profile,user_media&response_type=code`;
   res.json({ authUrl });
 };
 
 exports.instagramCallback = async (req, res) => {
   const { code, email } = req.body;
 
-  try {
+  try {``
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-
+``
     if (req.user.userId !== user._id.toString()) {
       return res.status(403).json({ message: "Access denied" });
     }
@@ -125,48 +72,145 @@ exports.instagramCallback = async (req, res) => {
   }
 };
 
-// Get Twitter Analytics Controller
-const fetchTwitterAnalytics = async (twitterId, accessToken) => {
+// Get Instagram User Information (Basic Display API)
+exports.getInstagramUserInfo = async (req, res) => {
+  const { email } = req.body;
+  const USER_TOKEN = req.headers.authorization?.split(" ")[1] || req.body.userToken;
+
+  if (!USER_TOKEN) {
+    return res.status(400).json({ message: "User access token is required" });
+  }
+
   try {
-    const response = await axios.get(
-      `https://api.twitter.com/2/users/${twitterId}/tweets`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (req.user.userId !== user._id.toString() && !user.isAdmin) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    // Validate token
+    if (!(await validateToken(USER_TOKEN, process.env.APP_TOKEN))) {
+      return res.status(401).json({ message: "Invalid user access token" });
+    }
+
+    // Fetch user profile
+    const userResponse = await axios.get(`${INSTAGRAM_API_URL}/me`, {
+      params: {
+        fields: "id,username,account_type,media_count",
+        access_token: USER_TOKEN,
+      },
+    });
+
+    const userData = userResponse.data;
+
+    res.json({
+      message: "Instagram user information retrieved successfully",
+      data: {
+        instagram: {
+          id: userData.id,
+          username: userData.username,
+          account_type: userData.account_type,
+          media_count: userData.media_count,
         },
+      },
+    });
+  } catch (err) {
+    console.error("Instagram user info error:", err.response?.data || err.message);
+    res.status(500).json({ message: "Error fetching Instagram user information" });
+  }
+};
+
+// Get Instagram User Information (Graph API for Business/Creator accounts)
+exports.getInstagramUserInfoGraph = async (req, res) => {
+  const { email } = req.body;
+  const USER_TOKEN = req.headers.authorization?.split(" ")[1] || req.body.userToken;
+
+  if (!USER_TOKEN) {
+    return res.status(400).json({ message: "User access token is required" });
+  }
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (req.user.userId !== user._id.toString() && !user.isAdmin) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    // Validate token
+    if (!(await validateToken(USER_TOKEN, process.env.APP_TOKEN))) {
+      return res.status(401).json({ message: "Invalid user access token" });
+    }
+
+    // Fetch Facebook Pages linked to the user
+    const accountsResponse = await axios.get(
+      `${FACEBOOK_GRAPH_API_URL}/me/accounts`,
+      {
         params: {
-          "tweet.fields": "public_metrics",
-          max_results: 10,
+          access_token: USER_TOKEN,
         },
       }
     );
 
-    const tweets = response.data.data || [];
-    let totalLikes = 0,
-      totalComments = 0,
-      totalShares = 0,
-      totalImpressions = 0;
+    if (!accountsResponse.data.data || accountsResponse.data.data.length === 0) {
+      return res.status(404).json({ message: "No linked Facebook Pages found" });
+    }
 
-    tweets.forEach((tweet) => {
-      totalLikes += tweet.public_metrics.like_count;
-      totalComments += tweet.public_metrics.reply_count;
-      totalShares += tweet.public_metrics.retweet_count;
-      totalImpressions += tweet.public_metrics.impression_count || 0;
+    // Assume the first Facebook Page is linked to the Instagram account
+    const pageId = accountsResponse.data.data[0].id;
+
+    // Fetch Instagram Business account
+    const instagramResponse = await axios.get(
+      `${FACEBOOK_GRAPH_API_URL}/${pageId}?fields=instagram_business_account`,
+      {
+        params: {
+          access_token: USER_TOKEN,
+        },
+      }
+    );
+
+    const instagramAccountId = instagramResponse.data.instagram_business_account?.id;
+    if (!instagramAccountId) {
+      return res.status(404).json({ message: "No Instagram Business account linked" });
+    }
+
+    // Fetch Instagram user details
+    const userResponse = await axios.get(
+      `${FACEBOOK_GRAPH_API_URL}/${instagramAccountId}`,
+      {
+        params: {
+          fields: "username,followers_count,media_count,profile_picture_url",
+          access_token: USER_TOKEN,
+        },
+      }
+    );
+
+    const userData = userResponse.data;
+
+    res.json({
+      message: "Instagram user information retrieved successfully",
+      data: {
+        instagram: {
+          id: instagramAccountId,
+          username: userData.username,
+          followers_count: userData.followers_count,
+          media_count: userData.media_count,
+          profile_picture_url: userData.profile_picture_url,
+        },
+      },
     });
-
-    return {
-      likes: totalLikes,
-      comments: totalComments,
-      shares: totalShares,
-      impressions: totalImpressions,
-    };
   } catch (err) {
-    console.error("Twitter API error:", err.response?.data || err.message);
-    return null;
+    console.error("Instagram Graph API error:", err.response?.data || err.message);
+    res.status(500).json({ message: "Error fetching Instagram user information" });
   }
 };
 
-// Get Instagram Analytics Controller
+// Fetch Instagram Analytics
 const fetchInstagramAnalytics = async (instagramId, accessToken) => {
   try {
     const mediaResponse = await axios.get(
@@ -220,62 +264,6 @@ const fetchInstagramAnalytics = async (instagramId, accessToken) => {
   }
 };
 
-// Get Socials Analytics Controller
-exports.getSocialAnalytics = async (req, res) => {
-  const { email } = req.body;
-
-  try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    if (req.user.userId !== user._id.toString() && !user.isAdmin) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
-    const analytics = {};
-
-    // Fetch Twitter analytics
-    if (user.twitter?.id && user.twitter?.accessToken) {
-      const twitterData = await fetchTwitterAnalytics(
-        user.twitter.id,
-        user.twitter.accessToken
-      );
-      if (twitterData) {
-        analytics.twitter = twitterData;
-      } else {
-        analytics.twitter = { error: "Unable to fetch Twitter analytics" };
-      }
-    } else {
-      analytics.twitter = { error: "Twitter account not linked" };
-    }
-
-    // Fetch Instagram analytics
-    if (user.instagram?.id && user.instagram?.accessToken) {
-      const instagramData = await fetchInstagramAnalytics(
-        user.instagram.id,
-        user.instagram.accessToken
-      );
-      if (instagramData) {
-        analytics.instagram = instagramData;
-      } else {
-        analytics.instagram = { error: "Unable to fetch Instagram analytics" };
-      }
-    } else {
-      analytics.instagram = { error: "Instagram account not linked" };
-    }
-
-    res.json({
-      message: "Social analytics retrieved successfully",
-      data: analytics,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-};
-
 // Search YouTube channel by Username
 const searchYouTubeChannel = async (username) => {
   try {
@@ -302,7 +290,6 @@ const searchYouTubeChannel = async (username) => {
 // Get YouTube channel statistics
 const fetchYouTubeAnalytics = async (channelId) => {
   try {
-    // Get channel statistics
     const channelResponse = await axios.get(`${YOUTUBE_API_URL}/channels`, {
       params: {
         part: "statistics,snippet",
@@ -321,7 +308,6 @@ const fetchYouTubeAnalytics = async (channelId) => {
     const channel = channelResponse.data.items[0];
     const stats = channel.statistics;
 
-    // Get recent videos for additional metrics
     const videosResponse = await axios.get(`${YOUTUBE_API_URL}/search`, {
       params: {
         part: "snippet",
@@ -336,7 +322,6 @@ const fetchYouTubeAnalytics = async (channelId) => {
     let totalVideoLikes = 0;
     let totalVideoViews = 0;
 
-    // Get detailed stats for recent videos
     if (videosResponse.data.items && videosResponse.data.items.length > 0) {
       const videoIds = videosResponse.data.items
         .map((item) => item.id.videoId)
@@ -376,46 +361,7 @@ const fetchYouTubeAnalytics = async (channelId) => {
   }
 };
 
-// Get YouTube Analytics by Username Controller
-exports.getYouTubeAnalyticsByUsername = async (req, res) => {
-  const { username } = req.body;
-
-  if (!username) {
-    return res.status(400).json({ message: "Username is required" });
-  }
-
-  try {
-    // Search for channel by username
-    const channelId = await searchYouTubeChannel(username);
-
-    if (!channelId) {
-      return res.status(404).json({
-        message: "YouTube channel not found for the given username",
-      });
-    }
-
-    // Get analytics for the found channel
-    const analytics = await fetchYouTubeAnalytics(channelId);
-
-    if (!analytics) {
-      return res.status(404).json({
-        message: "Unable to fetch YouTube analytics for this channel",
-      });
-    }
-
-    res.json({
-      message: "YouTube analytics retrieved successfully",
-      data: {
-        youtube: analytics,
-      },
-    });
-  } catch (err) {
-    console.error("YouTube analytics error:", err);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-};
-
-// Enhanced getSocialAnalytics to include YouTube
+// Get Social Analytics Controller
 exports.getSocialAnalytics = async (req, res) => {
   const { email, youtubeUsername } = req.body;
 
@@ -430,21 +376,6 @@ exports.getSocialAnalytics = async (req, res) => {
     }
 
     const analytics = {};
-
-    // Fetch Twitter analytics
-    if (user.twitter?.id && user.twitter?.accessToken) {
-      const twitterData = await fetchTwitterAnalytics(
-        user.twitter.id,
-        user.twitter.accessToken
-      );
-      if (twitterData) {
-        analytics.twitter = twitterData;
-      } else {
-        analytics.twitter = { error: "Unable to fetch Twitter analytics" };
-      }
-    } else {
-      analytics.twitter = { error: "Twitter account not linked" };
-    }
 
     // Fetch Instagram analytics
     if (user.instagram?.id && user.instagram?.accessToken) {
@@ -488,7 +419,44 @@ exports.getSocialAnalytics = async (req, res) => {
   }
 };
 
-// Get YouTube Channel Info by Username (separate endpoint)
+// Get YouTube Analytics by Username Controller
+exports.getYouTubeAnalyticsByUsername = async (req, res) => {
+  const { username } = req.body;
+
+  if (!username) {
+    return res.status(400).json({ message: "Username is required" });
+  }
+
+  try {
+    const channelId = await searchYouTubeChannel(username);
+
+    if (!channelId) {
+      return res.status(404).json({
+        message: "YouTube channel not found for the given username",
+      });
+    }
+
+    const analytics = await fetchYouTubeAnalytics(channelId);
+
+    if (!analytics) {
+      return res.status(404).json({
+        message: "Unable to fetch YouTube analytics for this channel",
+      });
+    }
+
+    res.json({
+      message: "YouTube analytics retrieved successfully",
+      data: {
+        youtube: analytics,
+      },
+    });
+  } catch (err) {
+    console.error("YouTube analytics error:", err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// Get YouTube Channel Info by Username
 exports.getYouTubeChannelInfo = async (req, res) => {
   const { username } = req.query;
 

@@ -1,10 +1,13 @@
 const User = require("../schema/user.schema");
-const bcrypt = require("bcryptjs");
+const cloudinary = require("../config/cloudinary.config");
 
-// Get Profule Controller
+
+// Get Profile Controller
 exports.getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('-password -otp -otpExpiration');
+    const user = await User.findById(req.user.userId).select(
+      "-password -otp -otpExpiration"
+    );
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -12,12 +15,14 @@ exports.getProfile = async (req, res) => {
       message: "Profile retrieved successfully",
       user: {
         id: user._id,
+        fullName: user.fullName,
         username: user.username,
         email: user.email,
+        profilePicture: user.profilePicture?.url || null,
         isVerified: user.isVerified,
         isAdmin: user.isAdmin,
-        createdAt: user.createdAt
-      }
+        createdAt: user.createdAt,
+      },
     });
   } catch (err) {
     console.error(err);
@@ -25,7 +30,7 @@ exports.getProfile = async (req, res) => {
   }
 };
 
-// Get Profule(Admin) Controller
+// Get All Users (Admin) Controller
 exports.getAllUsers = async (req, res) => {
   try {
     const requestingUser = await User.findById(req.user.userId);
@@ -34,32 +39,36 @@ exports.getAllUsers = async (req, res) => {
     }
 
     if (!requestingUser.isAdmin) {
-      return res.status(403).json({ message: "Access denied: Admin privileges required" });
+      return res
+        .status(403)
+        .json({ message: "Access denied: Admin privileges required" });
     }
 
     const { skip, limit } = req.pagination;
     const totalUsers = await User.countDocuments();
     const users = await User.find()
-      .select('-password -otp -otpExpiration')
+      .select("-password -otp -otpExpiration")
       .skip(skip)
       .limit(limit);
 
     res.json({
       message: "All users retrieved successfully",
-      users: users.map(user => ({
+      users: users.map((user) => ({
         id: user._id,
+        fullName: user.fullName,
         username: user.username,
         email: user.email,
+        profilePicture: user.profilePicture?.url || null,
         isVerified: user.isVerified,
         isAdmin: user.isAdmin,
-        createdAt: user.createdAt
+        createdAt: user.createdAt,
       })),
       pagination: {
         currentPage: req.pagination.page,
         totalPages: Math.ceil(totalUsers / limit),
         totalUsers: totalUsers,
-        limit: limit
-      }
+        limit: limit,
+      },
     });
   } catch (err) {
     console.error(err);
@@ -67,59 +76,54 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-// Update Profule Controller
+// ✅ Update Profile Controller
 exports.updateProfile = async (req, res) => {
-  const { username, email, password } = req.body;
-
   try {
-    const user = await User.findById(req.user.userId);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    const userId = req.user.userId;
+    const { fullName, username, email } = req.body;
 
-    if (username) {
-      const usernameExists = await User.findOne({
-        username,
-        _id: { $ne: user._id }
-      });
-      if (usernameExists) {
-        return res.status(400).json({ message: "Username already taken" });
-      }
-      user.username = username;
-    }
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
 
+    // Handle text fields
+    if (fullName) user.fullName = fullName.trim();
+    if (username) user.username = username.trim();
     if (email && email !== user.email) {
-      const emailExists = await User.findOne({
-        email,
-        _id: { $ne: user._id }
-      });
-      if (emailExists) {
-        return res.status(400).json({ message: "Email already in use" });
-      }
-      user.email = email;
-      user.isVerified = false;
+      user.email = email.trim();
+      user.isVerified = false; // force re-verification if email changed
+      // TODO: send verification email here
     }
 
-    if (password) {
-      const passwordRegex = /^(?=.*[A-Z])(?=.*[0-9!@#$%^&*])(?=.*[a-z]).{8,}$/;
-      if (!passwordRegex.test(password)) {
-        return res.status(400).json({
-          message: "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, and one number or special character"
-        });
+    // Handle profile picture upload
+    if (req.file) {
+      // Delete old image if exists
+      if (user.profilePicture?.public_id) {
+        await cloudinary.uploader.destroy(user.profilePicture.public_id);
       }
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
-      user.password = hashedPassword;
+
+      user.profilePicture = {
+        url: req.file.path,
+        public_id: req.file.filename,
+      };
     }
 
     await user.save();
 
     res.json({
       message: "Profile updated successfully",
-      needsVerification: email && email !== user.email
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        username: user.username,
+        email: user.email,
+        profilePicture: user.profilePicture?.url || null,
+        isVerified: user.isVerified,
+        isAdmin: user.isAdmin,
+        createdAt: user.createdAt,
+      },
     });
   } catch (err) {
-    console.error(err);
+    console.error("Update profile error:", err);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
