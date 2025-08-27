@@ -1,4 +1,5 @@
 const User = require("../schema/user.schema");
+const bcrypt = require("bcryptjs");
 const cloudinary = require("../config/cloudinary.config");
 
 
@@ -80,7 +81,12 @@ exports.getAllUsers = async (req, res) => {
 exports.updateProfile = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { fullName, username, email } = req.body;
+    const { fullName, username, email, password } = req.body;
+
+    console.log("Update request received:", { 
+      body: req.body, 
+      file: req.file ? { name: req.file.originalname, size: req.file.size } : null 
+    }); // Debug log
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -94,8 +100,16 @@ exports.updateProfile = async (req, res) => {
       // TODO: send verification email here
     }
 
+    // Handle password update
+    if (password) {
+      const saltRounds = 12;
+      user.password = await bcrypt.hash(password, saltRounds);
+    }
+
     // Handle profile picture upload
     if (req.file) {
+      console.log("File received:", req.file); // Debug log
+      
       // Delete old image if exists
       if (user.profilePicture?.public_id) {
         await cloudinary.uploader.destroy(user.profilePicture.public_id);
@@ -108,6 +122,8 @@ exports.updateProfile = async (req, res) => {
     }
 
     await user.save();
+
+    console.log("User saved with profilePicture:", user.profilePicture); // Debug log
 
     res.json({
       message: "Profile updated successfully",
