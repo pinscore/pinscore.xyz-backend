@@ -241,3 +241,35 @@ exports.setPassword = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+
+// Google OAuth callback handler
+exports.googleCallback = async (req, res) => {
+  try {
+    // User is attached to req.user by passport
+    const user = req.user;
+
+    // Generate JWT token
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "24h",
+    });
+
+    // Check if user needs to set username
+    const needsUsername = !user.username;
+
+    // Redirect to frontend with token and user info
+    const frontendURL = process.env.FRONTEND_URL || "http://localhost:5173";
+    
+    if (needsUsername) {
+      // Redirect to username setup with token
+      res.redirect(`${frontendURL}/signup?token=${token}&email=${user.email}&step=3`);
+    } else {
+      // Redirect to dashboard with token
+      res.redirect(`${frontendURL}/welcome?token=${token}`);
+    }
+  } catch (error) {
+    console.error("Google callback error:", error);
+    const frontendURL = process.env.FRONTEND_URL || "http://localhost:5173";
+    res.redirect(`${frontendURL}/login?error=authentication_failed`);
+  }
+};
