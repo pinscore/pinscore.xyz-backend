@@ -141,18 +141,14 @@ exports.checkStatus = async (req, res) => {
         exists: false,
         isVerified: false,
         hasUsername: false,
-        hasUnexpiredOtp: false,
         hasPassword: false,
       });
     }
-
-    const hasUnexpiredOtp = user.otp && user.otpExpiration && new Date() < user.otpExpiration;
 
     res.status(200).json({
       exists: true,
       isVerified: user.isVerified,
       hasUsername: !!user.username,
-      hasUnexpiredOtp,
       hasPassword: !!user.password,
     });
   } catch (err) {
@@ -176,8 +172,17 @@ exports.login = async (req, res) => {
       return res.status(403).json({ message: "Your account is not verified" });
     }
 
+    // For OAuth users, if no password set yet, still allow login (but redirect to set password)
     if (!user.password) {
-      return res.status(403).json({ message: "No password set for this account" });
+      // Generate token anyway for partial access
+      const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+        expiresIn: "24h",
+      });
+      return res.json({ 
+        message: "Login successful, but no password set. Please set one.", 
+        token,
+        needsPassword: true 
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -199,7 +204,7 @@ exports.login = async (req, res) => {
 
 // Set Password Controller
 exports.setPassword = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, username, password } = req.body; // username optional for OAuth
 
   try {
     const user = await User.findOne({ email });
@@ -211,7 +216,14 @@ exports.setPassword = async (req, res) => {
       return res.status(403).json({ message: "Account not verified" });
     }
 
-    if (!user.username) {
+    // If username provided and not set, set it
+    if (username && !user.username) {
+      const usernameExists = await User.findOne({ username });
+      if (usernameExists) {
+        return res.status(400).json({ message: "Username already taken" });
+      }
+      user.username = username;
+    } else if (!user.username) {
       return res.status(400).json({ message: "Please set a username first" });
     }
 
@@ -232,9 +244,15 @@ exports.setPassword = async (req, res) => {
     user.password = hashedPassword;
     await user.save();
 
+    // Generate and return token for immediate login
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "24h",
+    });
+
     res.status(200).json({
       message: "Password set successfully",
-      userId: user._id
+      userId: user._id,
+      token
     });
   } catch (err) {
     console.error(err);
@@ -246,26 +264,22 @@ exports.setPassword = async (req, res) => {
 // Google OAuth callback handler
 exports.googleCallback = async (req, res) => {
   try {
-    // User is attached to req.user by passport
     const user = req.user;
-
-    // Generate JWT token
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: "24h",
     });
 
-    // Check if user needs to set username
-    const needsUsername = !user.username;
-
-    // Redirect to frontend with token and user info
     const frontendURL = process.env.FRONTEND_URL || "http://localhost:5173";
     
-    if (needsUsername) {
-      // Redirect to username setup with token
+    if (!user.username) {
+      // No username: go to step 3 (add username)
       res.redirect(`${frontendURL}/signup?token=${token}&email=${user.email}&step=3`);
+    } else if (!user.password) {
+      // Has username but no password: go to step 4 (add password)
+      res.redirect(`${frontendURL}/signup?token=${token}&email=${user.email}&step=4`);
     } else {
-      // Redirect to dashboard with token
-      res.redirect(`${frontendURL}/welcome?token=${token}`);
+      // Fully set up: go to login to trigger dashboard
+      res.redirect(`${frontendURL}/login?token=${token}`);
     }
   } catch (error) {
     console.error("Google callback error:", error);
