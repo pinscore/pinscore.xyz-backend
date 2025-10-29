@@ -4,6 +4,7 @@ const cloudinary = require("../config/cloudinary.config");
 
 
 // Get Profile Controller
+// src/controllers/user.controller.js (updated getProfile)
 exports.getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select(
@@ -23,6 +24,15 @@ exports.getProfile = async (req, res) => {
         isVerified: user.isVerified,
         isAdmin: user.isAdmin,
         createdAt: user.createdAt,
+        youtube: user.youtube
+          ? {
+              channelId: user.youtube.channelId,
+              channelName: user.youtube.channelName,
+              username: user.youtube.username,
+              // Do NOT include: accessToken, refreshToken
+            }
+          : null,
+        // Add similar for other platforms if/when implemented (e.g., twitter, instagram)
       },
     });
   } catch (err) {

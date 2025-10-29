@@ -1,8 +1,9 @@
-// Load environment variables FIRST before any other imports
+// src/index.js (updated with session middleware)
 require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+const session = require("express-session");
 const multer = require("multer");
 const passport = require("passport");
 const configurePassport = require("./src/config/passport.config");
@@ -14,14 +15,28 @@ const socialRoutes = require("./src/routes/social.route");
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173', 
+  credentials: true
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Session middleware
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-fallback-secret-key-here',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: false, // Set to true in production with HTTPS
+    maxAge: 1000 * 60 * 60 * 24 // 1 day
+  }
+}));
 
 configurePassport(passport);
 // Initialize Passport
 app.use(passport.initialize());
+app.use(passport.session()); // Add this for session support
 
 // Routes
 app.use("/api/auth", authRoutes);

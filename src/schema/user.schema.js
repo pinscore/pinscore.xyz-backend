@@ -1,3 +1,4 @@
+// src/models/user.schema.js (updated)
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
@@ -35,9 +36,10 @@ const userSchema = new mongoose.Schema({
     channelId: { type: String },
     channelName: { type: String },
     username: { type: String },
+    accessToken: { type: String },
+    refreshToken: { type: String },
   },
 });
 
-userSchema.index({ username: 1 });
 
 module.exports = mongoose.model("User", userSchema);
