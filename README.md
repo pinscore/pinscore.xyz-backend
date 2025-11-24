@@ -1,5 +1,3 @@
-
-md
 # pinscore.xyz-backend
 
 ## Project Overview
